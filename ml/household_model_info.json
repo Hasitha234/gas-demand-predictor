@@ -1,0 +1,18 @@
+{
+  "features": [
+    "area_type",
+    "num_people",
+    "avg_daily_hours",
+    "cylinder_size_kg",
+    "weather_influence",
+    "residence_type",
+    "cooking_frequency",
+    "primary_usage",
+    "weather_impact_type",
+    "guest_impact"
+  ],
+  "target": "usual_duration_days",
+  "rf_mae": 15.44,
+  "rf_r2": 0.024,
+  "lr_mae": 16.14
+}
