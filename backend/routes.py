@@ -9,6 +9,12 @@ from jose import jwt
 from passlib.context import CryptContext
 from bson import ObjectId
 
+from backend.notifications import (
+    send_email,
+    build_household_email,
+    build_station_email,
+)
+
 from backend.models import (
     UserRegister, UserLogin, UserOut,
     HouseholdInput, HouseholdPrediction,
@@ -93,6 +99,22 @@ async def predict_household(data: HouseholdInput):
     record = {**data.dict(), **result, "created_at": datetime.now().isoformat()}
     await db.gas_usage.insert_one(record)
 
+    # Send email alert if user is registered and gas is low
+    try:
+        user_doc = await db.users.find_one({"_id": __import__("bson").ObjectId(data.user_id)})
+        if user_doc and result.get("days_left", 99) <= 7:
+            html = build_household_email(
+                name           = user_doc["name"],
+                days_left      = result["days_left"],
+                depletion_date = result["depletion_date"],
+                cylinder_size  = result["cylinder_size_kg"],
+                alert_message  = result["alert_message"],
+            )
+            send_email(user_doc["email"],
+                       f"⛽ Gas Alert — {result['days_left']} days remaining!", html)
+    except Exception as e:
+        print(f"Email notification skipped: {e}")
+
     return result
 
 @router.get("/household/history/{user_id}")
@@ -113,6 +135,23 @@ async def station_forecast(station_id: str):
     # Save prediction to database
     record = {**result, "generated_at": datetime.now().isoformat()}
     await db.predictions.insert_one(record)
+
+    # Send daily forecast email (in real system this would be scheduled)
+    try:
+        html = build_station_email(
+            station_id   = result["station_id"],
+            station_type = result["station_type"],
+            avg_daily    = result["avg_daily"],
+            total_7_day  = result["total_7_day"],
+            forecast     = result["forecast"],
+            alert_message= result["alert_message"],
+        )
+        send_email(
+            os.getenv("SMTP_EMAIL", ""),
+            f"📊 Station {station_id} — 7-Day Forecast", html
+        )
+    except Exception as e:
+        print(f"Station email skipped: {e}")
 
     return result
 
@@ -139,3 +178,24 @@ async def get_stats():
         "station_predictions":   total_station_preds,
         "last_updated":          datetime.now().isoformat(),
     }
+
+@router.post("/notify/household")
+async def send_household_alert(payload: dict):
+    """Manually trigger an email alert for a user"""
+    db       = get_db()
+    user_id  = payload.get("user_id")
+    to_email = payload.get("email")
+    name     = payload.get("name", "User")
+    days_left= payload.get("days_left", 5)
+    depletion= payload.get("depletion_date", "")
+    cyl_size = payload.get("cylinder_size_kg", 12.5)
+    alert_msg= payload.get("alert_message", "")
+
+    html = build_household_email(
+        name=name, days_left=days_left,
+        depletion_date=depletion,
+        cylinder_size=cyl_size,
+        alert_message=alert_msg,
+    )
+    sent = send_email(to_email, f"⛽ Gas Alert — {days_left} days remaining!", html)
+    return {"sent": sent, "to": to_email}

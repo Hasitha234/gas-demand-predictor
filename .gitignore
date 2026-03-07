@@ -1,8 +1,28 @@
+# Python
 venv/
 __pycache__/
 *.pyc
-.env
+*.pyo
+*.pyd
 *.pkl
 *.joblib
+
+# Environment secrets - NEVER commit this
+.env
+
+# ML model files (too large for GitHub)
+ml/station_models.pkl
+ml/household_model.pkl
+ml/household_model_lr.pkl
+
+# Node
 node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# OS
 .DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
